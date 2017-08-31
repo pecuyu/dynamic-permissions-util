@@ -13,6 +13,7 @@ import android.support.v4.content.ContextCompat;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -116,7 +117,7 @@ public class PermUtil {
      */
     private void scheduleNext(String permission, final int requestCode, OnRequestPermissionCallback callback) {
         // 判断请求的权限是否在头部
-        if (requestCode != requestInfo.keySet().iterator().next()) {
+        if (requestInfo.size() <= 0 || !isFirstElement(requestInfo.keySet(),requestCode)) {
             return;
         }
 
@@ -127,6 +128,11 @@ public class PermUtil {
         } else {  // 请求一个权限
             ActivityCompat.requestPermissions(mActivity, new String[]{permission}, requestCode);
         }
+    }
+
+    public boolean isFirstElement(Set<Integer> set, Integer key) {
+        Iterator<Integer> iterator = set.iterator();
+        return iterator.hasNext() && iterator.next().equals(key);
     }
 
     /**
@@ -207,7 +213,6 @@ public class PermUtil {
                 callback.onSuccess(requestCode, list2Array(grantedPerms));
                 callback.onFailed(requestCode, list2Array(deniedPerms));
                 prepareScheduleNext(requestCode, callback);
-
             }
         }
     }
@@ -227,11 +232,15 @@ public class PermUtil {
         if (requestCodes.size() > 0) {
             Integer nextCode = requestCodes.iterator().next();
             String nextPerm = requestInfo.get(nextCode); // 获取权限名
-            if (nextPerm != null) {
-                // 获取请求码
-                OnRequestPermissionCallback nextCall = callbacks.get(nextCode);
-                scheduleNext(nextPerm, nextCode, nextCall);
+            OnRequestPermissionCallback nextCall = callbacks.get(nextCode);
+            if (nextPerm == null) {
+                callbacks.remove(nextCode);
+                requestInfo.remove(nextCode);
+                return;
             }
+
+            // 获取Callback
+            scheduleNext(nextPerm, nextCode, nextCall);
         }
     }
 
@@ -280,6 +289,7 @@ public class PermUtil {
 
         /**
          * 检查发现已经授权的权限s
+         *
          * @param permissions
          */
         void onCheckedAlreadyGranted(String[] permissions);

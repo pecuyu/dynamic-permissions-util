@@ -24,7 +24,7 @@ public class MainActivity extends BaseActivity {
             }
         });
 
-        PermUtil.getInstance().checkAndRequestPermission(Manifest.permission.RECORD_AUDIO, 1, new OnRequestPermissionCallbackAdapter() {
+        PermUtil.getInstance().checkAndRequestPermission(Manifest.permission.RECORD_AUDIO, 2, new OnRequestPermissionCallbackAdapter() {
             @Override
             public void onSuccess(int requestCode, @NonNull String[] permissions) {
                 Toast.makeText(MainActivity.this, "录音权限申请成功", Toast.LENGTH_LONG).show();
