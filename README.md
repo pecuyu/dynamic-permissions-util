@@ -1,19 +1,32 @@
 # dynamic-permissions-util
 动态申请权限工具类
 
-##使用方法：
-1.使在需要申请权限的Activity继承BaseActivity
-2.在manifest文件声明要动态申请的权限
+## 使用方法：
+
+### 1.使在需要申请权限的Activity继承BaseActivity
+
+            public class MainActivity extends BaseActivity {
+
+                @Override
+                protected void onCreate(Bundle savedInstanceState) {
+                    super.onCreate(savedInstanceState);
+                    setContentView(R.layout.activity_main);
+                  }
+
+            }
+            
+### 2.在manifest文件声明要动态申请的权限
 
             <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
             <uses-permission android:name="android.permission.RECORD_AUDIO"/>
-            
-3.使用PermUtil.getInstance()获取util实例，并进行权限申请
-4.处理权限申请结果
+
+### 3.使用PermUtil.getInstance()获取util实例，并进行权限检查与申请
+
+### 4.处理权限申请结果
 
 
 
-##示例：
+## 示例：
 // 申请一个权限
 
             PermUtil.getInstance().checkAndRequestPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE, 1, new OnRequestPermissionCallbackAdapter() {
