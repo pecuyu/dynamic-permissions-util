@@ -98,7 +98,7 @@ public class PermUtil {
         // 将权限集合变成一个String方便处理
         String permsArray = list2String(getDeniedPermissions(permissions));
         RequestInfo requestInfo = new RequestInfo(requestCode, permsArray, callback);
-        if (requestInfos.contains(requestInfo)) {
+        if (!requestInfos.contains(requestInfo)) {
             requestInfos.add(requestInfo);
             scheduleNext(requestInfo);
         }
@@ -290,11 +290,12 @@ public class PermUtil {
     /**
      * 取消安装，防止内存泄漏
      */
-    public void uninstall() {
-        requestInfos.clear();
-        requestInfos = null;
-        mActivity = null;
-        permUtil = null;
+    public void uninstall(Activity activity) {
+        if (mActivity == activity) {
+            requestInfos = null;
+            mActivity = null;
+            permUtil = null;
+        }
     }
 
     /**

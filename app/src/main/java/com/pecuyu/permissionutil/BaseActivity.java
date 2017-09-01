@@ -30,7 +30,7 @@ public class BaseActivity extends AppCompatActivity {
     protected void onDestroy() {
         super.onDestroy();
         if (PermUtil.getInstance() != null) {
-            PermUtil.getInstance().uninstall();
+            PermUtil.getInstance().uninstall(this);
         }
     }
 }
