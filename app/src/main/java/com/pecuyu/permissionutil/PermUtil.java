@@ -7,11 +7,8 @@ import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
+
 
 /**
  * Author: pecuyu
@@ -22,9 +19,8 @@ import java.util.Set;
 
 public class PermUtil {
     private Activity mActivity;
-    List<String> list = new ArrayList<>();
-    private Map<Integer, String> requestInfo = new HashMap<>();
-    private Map<Integer, OnRequestPermissionCallback> callbacks = new HashMap<>();
+    private List<RequestInfo> requestInfos = new ArrayList<>();
+
     private static PermUtil permUtil;
 
     /**
@@ -74,10 +70,12 @@ public class PermUtil {
             return;
         }
 
-        requestInfo.put(requestCode, permission);
-        callbacks.put(requestCode, callback);
+        RequestInfo requestInfo = new RequestInfo(requestCode, permission, callback);
+        if (!requestInfos.contains(requestInfo)) {
+            requestInfos.add(requestInfo);
+            scheduleNext(requestInfo);
+        }
 
-        scheduleNext(permission, requestCode, callback);
     }
 
     /**
@@ -92,46 +90,53 @@ public class PermUtil {
             return;
         }
 
-        if (checkGrantedPermissions(permissions) && callback != null) {
-            callback.onCheckedAlreadyGranted(permissions);
+        if (checkGrantedPermissions(permissions)) {
+            if (callback != null) callback.onCheckedAlreadyGranted(permissions);
             return;
         }
 
-        String permsArray = list2String(getDeniedPermissions(permissions));  // 将权限集合变成一个String方便处理
-        requestInfo.put(requestCode, permsArray);
-        callbacks.put(requestCode, callback);
-        scheduleNext(permsArray, requestCode, callback);
+        // 将权限集合变成一个String方便处理
+        String permsArray = list2String(getDeniedPermissions(permissions));
+        RequestInfo requestInfo = new RequestInfo(requestCode, permsArray, callback);
+        if (requestInfos.contains(requestInfo)) {
+            requestInfos.add(requestInfo);
+            scheduleNext(requestInfo);
+        }
+
     }
 
     /**
      * 依次申请权限
      *
-     * @param permission
-     * @param requestCode
-     * @param callback
+     * @param requestInfo
      */
-    private void scheduleNext(String permission, final int requestCode, OnRequestPermissionCallback callback) {
+    private void scheduleNext(RequestInfo requestInfo) {
         // 判断请求的权限是否在头部
-        if (requestInfo.size() <= 0 || !isFirstElement(requestInfo.keySet(),requestCode)) {
+        if (requestInfos.size() <= 0 || !isFirstElement(requestInfo)) {
             return;
         }
 
-        if (permission.contains(",")) {  // 请求多个权限
-            List<String> deniedPermissions = getDeniedPermissions(permission.split(",")); // 只获取还未授权的权限
-            String[] perms = list2Array(deniedPermissions);
-            ActivityCompat.requestPermissions(mActivity, perms, requestCode);
+        if (requestInfo.permission.contains(",")) {  // 请求多个权限
+            List<String> deniedPermissions = getDeniedPermissions(requestInfo.permission.split(","));
+            String[] perms = list2Array(deniedPermissions); // 只获取还未授权的权限
+            ActivityCompat.requestPermissions(mActivity, perms, requestInfo.requestCode);
         } else {  // 请求一个权限
-            ActivityCompat.requestPermissions(mActivity, new String[]{permission}, requestCode);
+            ActivityCompat.requestPermissions(mActivity, new String[]{requestInfo.permission}, requestInfo.requestCode);
         }
     }
 
-   /**
-    * 是否是第一个元素
-    */
-    public boolean isFirstElement(Set<Integer> set, Integer key) {
-        Iterator<Integer> iterator = set.iterator();
-        return iterator.hasNext() && iterator.next().equals(key);
+    /**
+     * 是否是第一个元素
+     *
+     * @param requestInfo
+     */
+    public boolean isFirstElement(RequestInfo requestInfo) {
+        if (requestInfos.size() <= 0 || requestInfo == null) {
+            return false;
+        }
+        return requestInfos.get(0).equals(requestInfo);
     }
+
 
     /**
      * list<string> 转 string[]
@@ -166,17 +171,6 @@ public class PermUtil {
         return sb.toString();
     }
 
-    public String array2String(String[] strings) {
-
-        StringBuffer sb = new StringBuffer();
-        for (int i = 0; i < strings.length; i++) {
-            sb.append(strings[i]);
-            if (i != strings.length) {
-                sb.append(",");
-            }
-        }
-        return sb.toString();
-    }
 
     /**
      * 处理权限请求
@@ -187,17 +181,19 @@ public class PermUtil {
      * @param grantResults
      */
     public void dealRequestPermission(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        Set<Integer> requestCodes = requestInfo.keySet();
-        if (requestCodes.size() > 0 && requestCode == requestCodes.iterator().next()) {
-            OnRequestPermissionCallback callback = callbacks.get(requestCode);
+
+        if (requestInfos.size() > 0) {
+            RequestInfo requestInfo = requestInfos.get(0);
+            if (requestInfo == null || requestInfo.requestCode != requestCode) return;
+            OnRequestPermissionCallback callback = requestInfo.callback;
             if (callback == null) {  //没有callback则直接准备申请下一个权限
-                prepareScheduleNext(requestCode, null);
+                prepareScheduleNext(requestInfo);
                 return;
             }
 
             if (grantResults.length > 0) {
-                List<String> grantedPerms = new ArrayList<>();  // 已经授权的权限集合 
-                List<String> deniedPerms = new ArrayList<>();  // 请求失败的权限集合
+                List<String> grantedPerms = new ArrayList<>();  // 授权成功的权限集合
+                List<String> deniedPerms = new ArrayList<>();  // 授权失败的权限集合
 
                 for (int i = 0; i < grantResults.length; i++) {
                     if (grantResults[i] == PackageManager.PERMISSION_GRANTED) {
@@ -208,10 +204,12 @@ public class PermUtil {
                 }
 
                 // 发布权限结果
-                callback.onSuccess(requestCode, list2Array(grantedPerms));
-                callback.onFailed(requestCode, list2Array(deniedPerms));
-                // 准备申请下一项权限
-                prepareScheduleNext(requestCode, callback);
+                if (grantedPerms.size() > 0)
+                    callback.onSuccess(requestCode, list2Array(grantedPerms));
+                if (deniedPerms.size() > 0)
+                    callback.onFailed(requestCode, list2Array(deniedPerms));
+                prepareScheduleNext(requestInfo);
+
             }
         }
     }
@@ -219,27 +217,17 @@ public class PermUtil {
     /**
      * 为下一次申请权限做准备
      *
-     * @param requestCode
-     * @param callback
+     * @param requestInfo
      */
 
-    private void prepareScheduleNext(Integer requestCode, OnRequestPermissionCallback callback) {
+    private void prepareScheduleNext(RequestInfo requestInfo) {
         // 移除已经申请过的信息
-        callbacks.remove(requestCode);
-        requestInfo.remove(requestCode);
-        Set<Integer> requestCodes = requestInfo.keySet(); // 请求码集合
-        if (requestCodes.size() > 0) {
-            Integer nextCode = requestCodes.iterator().next();
-            String nextPerm = requestInfo.get(nextCode); // 获取权限名
-            OnRequestPermissionCallback nextCall = callbacks.get(nextCode);
-            if (nextPerm == null) {
-                callbacks.remove(nextCode);
-                requestInfo.remove(nextCode);
-                return;
+        requestInfos.remove(requestInfo);
+        if (requestInfos.size() > 0) {
+            RequestInfo nextInfo = requestInfos.get(0);
+            if (nextInfo.permission != null) {
+                scheduleNext(nextInfo);
             }
-
-            // 获取Callback
-            scheduleNext(nextPerm, nextCode, nextCall);
         }
     }
 
@@ -259,7 +247,7 @@ public class PermUtil {
     }
 
     /**
-     * 获取还没有授权的权限集合
+     * 获取还没有授权的权限
      *
      * @param permissions
      * @return
@@ -286,11 +274,6 @@ public class PermUtil {
          */
         void onCheckedAlreadyGranted(String permission, int requestCode);
 
-        /**
-         * 检查发现已经授权的权限s
-         *
-         * @param permissions
-         */
         void onCheckedAlreadyGranted(String[] permissions);
 
         /**
@@ -308,9 +291,45 @@ public class PermUtil {
      * 取消安装，防止内存泄漏
      */
     public void uninstall() {
-        callbacks = null;
-        requestInfo = null;
+        requestInfos.clear();
+        requestInfos = null;
         mActivity = null;
         permUtil = null;
+    }
+
+    /**
+     * 权限请求的信息类
+     */
+    private class RequestInfo {
+        int requestCode;
+        String permission;
+        OnRequestPermissionCallback callback;
+
+        public RequestInfo() {
+        }
+
+        public RequestInfo(int requestCode, String permission, OnRequestPermissionCallback callback) {
+            this.requestCode = requestCode;
+            this.permission = permission;
+            this.callback = callback;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+
+            RequestInfo that = (RequestInfo) o;
+
+            return requestCode == that.requestCode && permission.equals(that.permission);
+        }
+
+        @Override
+        public int hashCode() {
+            int result = requestCode;
+            result = 31 * result + permission.hashCode();
+            result = 31 * result + (callback != null ? callback.hashCode() : 0);
+            return result;
+        }
     }
 }
