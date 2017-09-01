@@ -1,10 +1,5 @@
 package com.pecuyu.permissionutil;
 
-/**
- * Created by pecuyu on 2017/8/31.
- */
-
-
 import android.app.Activity;
 import android.content.pm.PackageManager;
 import android.support.annotation.NonNull;
@@ -102,7 +97,7 @@ public class PermUtil {
             return;
         }
 
-        String permsArray = list2String(getDeniedPermissions(permissions));
+        String permsArray = list2String(getDeniedPermissions(permissions));  // 将权限集合变成一个String方便处理
         requestInfo.put(requestCode, permsArray);
         callbacks.put(requestCode, callback);
         scheduleNext(permsArray, requestCode, callback);
@@ -122,7 +117,7 @@ public class PermUtil {
         }
 
         if (permission.contains(",")) {  // 请求多个权限
-            List<String> deniedPermissions = getDeniedPermissions(permission.split(","));
+            List<String> deniedPermissions = getDeniedPermissions(permission.split(",")); // 只获取还未授权的权限
             String[] perms = list2Array(deniedPermissions);
             ActivityCompat.requestPermissions(mActivity, perms, requestCode);
         } else {  // 请求一个权限
@@ -130,6 +125,9 @@ public class PermUtil {
         }
     }
 
+   /**
+    * 是否是第一个元素
+    */
     public boolean isFirstElement(Set<Integer> set, Integer key) {
         Iterator<Integer> iterator = set.iterator();
         return iterator.hasNext() && iterator.next().equals(key);
@@ -198,8 +196,8 @@ public class PermUtil {
             }
 
             if (grantResults.length > 0) {
-                List<String> grantedPerms = new ArrayList<>();
-                List<String> deniedPerms = new ArrayList<>();
+                List<String> grantedPerms = new ArrayList<>();  // 已经授权的权限集合 
+                List<String> deniedPerms = new ArrayList<>();  // 请求失败的权限集合
 
                 for (int i = 0; i < grantResults.length; i++) {
                     if (grantResults[i] == PackageManager.PERMISSION_GRANTED) {
@@ -212,6 +210,7 @@ public class PermUtil {
                 // 发布权限结果
                 callback.onSuccess(requestCode, list2Array(grantedPerms));
                 callback.onFailed(requestCode, list2Array(deniedPerms));
+                // 准备申请下一项权限
                 prepareScheduleNext(requestCode, callback);
             }
         }
@@ -260,7 +259,7 @@ public class PermUtil {
     }
 
     /**
-     * 获取还没有授权的权限
+     * 获取还没有授权的权限集合
      *
      * @param permissions
      * @return
